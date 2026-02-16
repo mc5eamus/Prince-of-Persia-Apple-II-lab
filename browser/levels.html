@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Prince of Persia — Level Viewer</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    #controls {
+      position: fixed;
+      bottom: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      z-index: 10;
+      background: rgba(0,0,0,0.8);
+      padding: 6px 12px;
+      border-radius: 6px;
+    }
+    #controls label, #controls span {
+      color: #aaa;
+      font-family: monospace;
+      font-size: 13px;
+    }
+    #controls select, #controls button {
+      font-family: monospace;
+      font-size: 13px;
+      background: #222;
+      color: #eee;
+      border: 1px solid #555;
+      padding: 2px 6px;
+      cursor: pointer;
+    }
+    #controls button:hover { background: #444; }
+    #help-text {
+      position: fixed;
+      top: 10px;
+      right: 10px;
+      color: #666;
+      font-family: monospace;
+      font-size: 11px;
+      text-align: right;
+      line-height: 1.6;
+    }
+  </style>
+</head>
+<body>
+  <div id="screen-container">
+    <canvas id="game-canvas" width="560" height="384"></canvas>
+  </div>
+
+  <div id="controls">
+    <label>Level:</label>
+    <select id="level-select"></select>
+    <span>|</span>
+    <label>Room:</label>
+    <select id="room-select"></select>
+    <span>|</span>
+    <button id="btn-map">Map (M)</button>
+  </div>
+
+  <div id="help-text">
+    Arrow keys: navigate rooms<br>
+    M: toggle map<br>
+    1-9: jump to room
+  </div>
+
+  <script type="module" src="js/levelViewer.js"></script>
+</body>
+</html>

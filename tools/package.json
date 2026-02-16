@@ -1,0 +1,12 @@
+{
+  "name": "pop-image-tools",
+  "version": "1.0.0",
+  "description": "Image extraction tools for Prince of Persia (Apple II) source",
+  "scripts": {
+    "export-example": "node export-example.js",
+    "export-all": "node export-all.js"
+  },
+  "dependencies": {
+    "pngjs": "^7.0.0"
+  }
+}
