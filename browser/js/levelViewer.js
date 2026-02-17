@@ -69,6 +69,7 @@ async function main() {
 
   // ── Level change ──
   async function changeLevel(num) {
+    viewer.stopAnimation();
     display.blackout();
     text.drawCentered(`LOADING LEVEL ${num}...`, 90, 10, 0);
     display.present();
@@ -78,6 +79,7 @@ async function main() {
       viewer.bgTables = bgTables;
       await viewer.loadLevel(num);
       updateRoomSelect();
+      viewer.startAnimation();
     } catch (err) {
       console.error(`Failed to load level ${num}:`, err);
       display.blackout();

@@ -35,15 +35,17 @@ Faithful browser-based reimplementation of Prince of Persia for the Apple II, us
 - [x] B-section variant tables (spaceb, floorb, blockb, panelb)
 - [x] Block/panel C-section and D-section variant tables
 - [x] Palace vs dungeon tileset switching
-- [ ] Verify rendering against screenshots for all 15 levels
-- [ ] Special A-section handling for animated tiles (spikes, slicer, flask, sword)
-- [ ] `drawma` — movable A-section (spike animation frames, slicer blade, flask glow, sword shine)
-- [ ] `drawmc` — movable C-section
-- [ ] `drawmd` — movable D-section (gate opening/closing)
-- [ ] Front piece STA/ORA mode per tile type (dungeon posts, archtops)
-- [ ] `archpanel` special case (archtop1 left of panelwof)
-- [ ] Torch flame animation overlay
-- [ ] Loose floor shake animation
+- [x] Verify rendering against screenshots for all 15 levels
+- [x] Special A-section handling for animated tiles (spikes, slicer, flask, sword)
+- [x] `drawma` — movable A-section (spike animation frames, slicer blade, flask glow, sword shine)
+- [x] `drawmc` — movable C-section
+- [x] `drawmd` — movable D-section (gate opening/closing)
+- [x] Front piece STA/ORA mode per tile type (dungeon posts, archtops)
+- [x] `archpanel` special case (archtop1 left of panelwof)
+- [x] Torch flame animation overlay
+- [x] `drawmb` — movable B-section (gate bars, spike B, loose B, exit stairs/door)
+- [x] Slicer front piece (`drawslicerf`) with `maddfore` two-pass draw
+- [x] `getpiecea` loose floor override (state-based A-section image)
 
 ## Phase 4: Character Sprite Rendering
 
@@ -68,6 +70,7 @@ Faithful browser-based reimplementation of Prince of Persia for the Apple II, us
 - [ ] Keyboard input (CTRL.S / SPECIALK.S)
 - [ ] Collision detection (COLL.S — wall checks, edge checks, floor checks)
 - [ ] Mover system (MOVER.S — falling floors, gates, pressure plates, chompers)
+- [ ] Loose floor shake animation (rendering code ready — needs mover state machine to drive tile.spec)
 - [ ] Guard AI (CTRLSUBS.S — auto-control sequences)
 - [ ] Sound effects (SOUND.S — can use Web Audio API for Apple II square wave synthesis)
 - [ ] Timer / game clock (minutes remaining)

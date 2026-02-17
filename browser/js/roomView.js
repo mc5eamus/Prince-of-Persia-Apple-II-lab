@@ -43,6 +43,8 @@ export class RoomView {
     this.currentRoom = 1;
     this.showMap = false;
     this.bgTables = null;
+    this.flameFrame = 0;
+    this._animTimer = null;
   }
 
   /**
@@ -101,7 +103,33 @@ export class RoomView {
    */
   toggleMap() {
     this.showMap = !this.showMap;
+    if (this.showMap) {
+      this.stopAnimation();
+    } else {
+      this.startAnimation();
+    }
     this.draw();
+  }
+
+  /**
+   * Start torch flame animation (~12 FPS, matching Apple II frame rate).
+   */
+  startAnimation() {
+    if (this._animTimer) return;
+    this._animTimer = setInterval(() => {
+      this.flameFrame = (this.flameFrame + 1) % 18;
+      if (!this.showMap) this.draw();
+    }, 83); // ~12 FPS
+  }
+
+  /**
+   * Stop animation loop.
+   */
+  stopAnimation() {
+    if (this._animTimer) {
+      clearInterval(this._animTimer);
+      this._animTimer = null;
+    }
   }
 
   /**
@@ -132,6 +160,7 @@ export class RoomView {
       page,
       palace: isPalace,
       bgTables: this.bgTables,
+      flameFrame: this.flameFrame,
     });
 
     // HUD: Level and room info

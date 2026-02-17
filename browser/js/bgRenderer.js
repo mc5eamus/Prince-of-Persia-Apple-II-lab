@@ -128,6 +128,49 @@ const spikeb = [0x00,0x23,0x25,0x27,0x29,0x2b,0x29,0x25,0x23,0x00];
 const gate8c = [0x2f,0x30,0x31,0x32,0x33,0x34,0x35,0x36];
 const gate8b = [0x3e,0x3d,0x3c,0x3b,0x3a,0x39,0x38,0x37];
 
+// Gate special images
+const gatebotSTA = 0x43;
+const gatebotORA = 0x44;
+const gateB1     = 0x37;
+const gatecmask  = 0x0d;
+const gmaxval    = 47 * 4;
+
+// Slicer animation tables
+const slicerseq  = [4, 3, 1, 2, 5, 4, 4];
+const slicerRet  = 6;
+const slicertop  = [0x00, 0x58, 0x5a, 0x5c, 0x5e];
+const slicerbot  = [0x57, 0x59, 0x5b, 0x5d, 0x5f];
+const slicerbot2 = [0x8e, 0x8f, 0x90, 0x5d, 0x5f]; // smeared
+const slicergap  = [0, 56, 70, 83, 85]; // decimal from dfb
+const slicerfrnt = [0x65, 0x66, 0x67, 0x68, 0x69];
+
+// Loose floor tables
+const looseb_img = 0x1b;
+const loosea = [0x01, 0x1e, 0x01, 0x1f, 0x1f, 0x01, 0x01, 0x01, 0x1f, 0x1f, 0x1f];
+const looseby = [0, 1, 0, -1, -1, 0, 0, 0, -1, -1, -1];
+const loosed = [0x15, 0x2c, 0x15, 0x2d, 0x2d, 0x15, 0x15, 0x15, 0x2d, 0x2d, 0x2d];
+const Ffalling = 10;
+
+// Special constants
+const specialflask = 0x95;
+const swordgleam0  = 0x99;
+const swordgleam1  = 0xb3;
+const archpanel    = 0xa1;
+const spikeExt     = 5;
+
+// Exit images
+const stairs   = 0x6b;
+const door      = 0x6c;
+const doormask  = 0x6d;
+const toprepair = 0x6e;
+
+// Torch flame animation (GAMEBG.S torchflame table — 18 entries, bgtable1 images)
+const torchflame = [
+  0x52,0x53,0x54,0x55,0x56,0x61,0x62,0x63,0x64,
+  0x52,0x54,0x56,0x63,0x61,0x55,0x53,0x64,0x62
+];
+const TORCH_LAST = 17;
+
 // ─── Coordinate helpers ─────────────────────────────────────────────────────
 
 /**
@@ -270,6 +313,7 @@ export function drawRoom(display, level, roomIdx, opts = {}) {
   const bg1 = opts.bgTables?.bgtable1 || null;
   const bg2 = opts.bgTables?.bgtable2 || null;
 
+  const flameFrame = opts.flameFrame !== undefined ? opts.flameFrame : 0;
   const useSprites = !!(bg1 && bg2);
   const tileColor  = palace ? PALACE_TILE_COLOR  : DUNGEON_TILE_COLOR;
   const floorColor = palace ? PALACE_FLOOR_COLOR : DUNGEON_FLOOR_COLOR;
@@ -374,6 +418,44 @@ export function drawRoom(display, level, roomIdx, opts = {}) {
         }
       }
 
+      // ── drawmb: movable B-section of left neighbor ──
+      {
+        if (leftId === TILE.gate) {
+          drawGateB(display, leftTile, srcX, ay, blockBot, page, tileColor, bg1, bg2);
+        } else if (leftId === TILE.spikes) {
+          drawSpikeB(display, leftTile.spec, srcX, ay, page, tileColor, bg1, bg2);
+        } else if (leftId === TILE.loose) {
+          drawLooseB(display, leftTile.spec, srcX, ay, page, tileColor, bg1, bg2);
+        } else if (leftId === TILE.exit) {
+          drawExitB(display, leftTile, srcX, ay, blockBot, page, tileColor, bg1, bg2);
+        }
+        // drawtorchb: torch flame overlay (FRAMEADV.S / GAMEBG.S SETUPFLAME)
+        if (leftId === TILE.torch && srcX > 0) {
+          // spreced = left neighbor's spec, used as frame offset
+          // desync: each torch starts with random spec, adding global flameFrame shifts animation
+          const frame = (leftSpec + flameFrame) % (TORCH_LAST + 1);
+          const flameImg = getBgImage(torchflame[frame], bg1, bg2);
+          if (flameImg) {
+            // XCO = blockxco + 1 byte = srcX + 7 SHires pixels
+            // YCO = Ay - 43 (SETUPFLAME subtracts 43 from Ay)
+            // OPACITY = STA (overwrite mode)
+            drawBgImage(display, flameImg, srcX + 7, ay - 43, page, false, tileColor);
+          }
+        }
+      }
+
+      // ── drawmc: movable C-section (gate only) ──
+      {
+        const mcVisible = (id === TILE.space || id === TILE.panelwof ||
+                           id === TILE.pillartop);
+        if (mcVisible) {
+          const belowLeft = getBelowLeftTile(level, roomIdx, col, row);
+          if (belowLeft && belowLeft.id === TILE.gate) {
+            drawGateC(display, belowLeft, srcX, blockBot, page, tileColor, bg1, bg2);
+          }
+        }
+      }
+
       // ── drawd: D-section (floor surface) ──
       {
         let dImgNum;
@@ -396,43 +478,128 @@ export function drawRoom(display, level, roomIdx, opts = {}) {
 
       // ── drawa: A-section (mask if intrusive left neighbor, then body) ──
       {
-        // Mask A only when left neighbor has intrusive B-section
-        const needMask = (leftId === TILE.panelwif || leftId === TILE.panelwof ||
-                          leftId === TILE.pillartop || leftId === TILE.block);
-        if (needMask) {
-          const maImgNum = maska[id];
-          if (maImgNum) {
-            const maImg = getBgImage(maImgNum, bg1, bg2);
-            if (maImg) drawBgMask(display, maImg, srcX, ay, page);
+        // archpanel special case: archtop1 to left of panelwof
+        if (leftId === TILE.archtop1 && id === TILE.panelwof) {
+          // Draw archpanel image directly (no mask needed)
+          const apImg = getBgImage(archpanel, bg1, bg2);
+          if (apImg) {
+            drawBgImage(display, apImg, srcX, ay + pieceay[id], page, true, tileColor);
+          }
+        } else {
+          // Mask A only when left neighbor has intrusive B-section
+          const needMask = (leftId === TILE.panelwif || leftId === TILE.panelwof ||
+                            leftId === TILE.pillartop || leftId === TILE.block);
+          if (needMask) {
+            const maImgNum = maska[id];
+            if (maImgNum) {
+              const maImg = getBgImage(maImgNum, bg1, bg2);
+              if (maImg) drawBgMask(display, maImg, srcX, ay, page);
+            }
+          }
+
+          // A body — getpiecea: loose floor overrides based on state
+          let aImgNum;
+          if (id === TILE.loose) {
+            const li = getLooseY(tile.spec);
+            aImgNum = loosea[li];
+          } else {
+            aImgNum = piecea[id];
+          }
+          if (aImgNum) {
+            const aImg = getBgImage(aImgNum, bg1, bg2);
+            if (aImg) {
+              drawBgImage(display, aImg, srcX, ay + pieceay[id], page, true, tileColor);
+            }
           }
         }
+      }
 
-        // A body
-        const aImgNum = piecea[id];
-        if (aImgNum) {
-          const aImg = getBgImage(aImgNum, bg1, bg2);
-          if (aImg) {
-            drawBgImage(display, aImg, srcX, ay + pieceay[id], page, true, tileColor);
+      // ── drawma: movable A-section (spikes, slicer, flask, sword) ──
+      {
+        if (id === TILE.spikes) {
+          drawSpikeA(display, tile.spec, srcX, ay, page, tileColor, bg1, bg2);
+        } else if (id === TILE.slicer) {
+          drawSlicerA(display, tile.spec, srcX, ay, page, tileColor, bg1, bg2);
+        } else if (id === TILE.sword) {
+          drawSwordA(display, tile.spec, srcX, ay, page, bg1, bg2);
+        }
+        // flask bubbles require setupflask (animation) — skip for static viewer
+      }
+
+      // ── drawmd: movable D-section (loose floor) ──
+      {
+        if (id === TILE.loose) {
+          const li = getLooseY(tile.spec);
+          const ldImgNum = loosed[li];
+          if (ldImgNum) {
+            const ldImg = getBgImage(ldImgNum, bg1, bg2);
+            if (ldImg) {
+              drawBgImage(display, ldImg, srcX, blockBot, page, false, floorColor);
+            }
           }
         }
       }
 
       // ── drawfrnt: front piece ──
       {
-        let fImgNum;
-        if (id === TILE.block) {
-          fImgNum = blockfr[(tile.spec < NUMBLOX) ? tile.spec : 0];
+        // Slicer front handled specially
+        if (id === TILE.slicer) {
+          drawSlicerF(display, tile.spec, srcX, ay, page, tileColor, bg1, bg2);
         } else {
-          fImgNum = fronti[id];
-        }
-        if (fImgNum) {
-          const fImg = getBgImage(fImgNum, bg1, bg2);
-          if (fImg) {
+          let fImgNum;
+          let fUseOra = true; // default ORA
+          let fUseMask = false; // maddfore = AND mask + ORA
+
+          if (id === TILE.block) {
+            fImgNum = blockfr[(tile.spec < NUMBLOX) ? tile.spec : 0];
+            fUseOra = false; // STA mode
+          } else if (id === TILE.flask) {
+            // Special flask: check potion type in state bits [7:5]
+            // Assembly: if bits == 5 (0xa0) or bits < 2 (< 0x40), use normal front
+            // Otherwise use specialflask
+            const potionBits = (tile.spec & 0xe0);
+            if (potionBits !== 0xa0 && potionBits >= 0x40) {
+              fImgNum = specialflask;
+            } else {
+              fImgNum = fronti[id];
+            }
+            fUseMask = true; // maddfore
+          } else if (id >= TILE.archtop2) {
+            // archtop2, archtop3, archtop4 → STA
+            fImgNum = fronti[id];
+            fUseOra = false;
+          } else if (!palace && id === TILE.posts) {
+            // Dungeon posts → STA
+            fImgNum = fronti[id];
+            fUseOra = false;
+          } else {
+            fImgNum = fronti[id];
+            if (fImgNum) fUseMask = true; // default: maddfore (AND+ORA)
+          }
+
+          if (fImgNum) {
             const fX = srcX + frontx[id] * 7;
             const fY = ay + fronty[id];
-            drawBgImage(display, fImg, fX, fY, page, true, tileColor);
+
+            if (fUseMask) {
+              // maddfore: first AND pass (mask), then ORA pass
+              const fMaskImg = getBgImage(fImgNum, bg1, bg2);
+              if (fMaskImg) {
+                drawBgMask(display, fMaskImg, fX, fY, page);
+                drawBgImage(display, fMaskImg, fX, fY, page, true, tileColor);
+              }
+            } else if (fUseOra) {
+              const fImg = getBgImage(fImgNum, bg1, bg2);
+              if (fImg) drawBgImage(display, fImg, fX, fY, page, true, tileColor);
+            } else {
+              // STA mode
+              const fImg = getBgImage(fImgNum, bg1, bg2);
+              if (fImg) drawBgImage(display, fImg, fX, fY, page, false, tileColor);
+            }
           }
         }
+
+        // DrawGateBF? — gate front bars only drawn when kid is present (Phase 4)
       }
     }
   }
@@ -443,6 +610,226 @@ export function drawRoom(display, level, roomIdx, opts = {}) {
  */
 function getBelowLeftTile(level, roomIdx, col, row) {
   return getTile(level, roomIdx, col - 1, row + 1);
+}
+
+// ─── Movable section helpers ────────────────────────────────────────────────
+
+/**
+ * Map loose floor state to animation index.
+ * Assembly: getloosey (FRAMEADV.S)
+ * state >= 0 → Y = state; state < 0 (bit 7 set) → mask off bit 7,
+ * clamp to Ffalling, use as index.  Default (static viewer): state=0 → index 0.
+ */
+function getLooseY(state) {
+  if (state === undefined || state === null) return 0;
+  let s = state & 0xFF;
+  if (s & 0x80) {
+    s = s & 0x7f;
+    if (s >= Ffalling + 1) s = 1;
+  }
+  return Math.min(s, loosea.length - 1);
+}
+
+/**
+ * Draw spike A-section.  state is used as frame index (0–9).
+ * Assembly: drawspikea (FRAMEADV.S L1453)
+ */
+function drawSpikeA(display, state, srcX, ay, page, color, bg1, bg2) {
+  let idx = (state || 0) & 0xFF;
+  if (idx & 0x80) idx = spikeExt; // hibit set → fully extended
+  if (idx >= spikea.length) idx = 0;
+  const imgNum = spikea[idx];
+  if (!imgNum) return;
+  const img = getBgImage(imgNum, bg1, bg2);
+  if (img) drawBgImage(display, img, srcX, ay - 1, page, true, color);
+}
+
+/**
+ * Draw spike B-section (from left neighbor).
+ * Assembly: drawspikeb (FRAMEADV.S L1478)
+ */
+function drawSpikeB(display, state, srcX, ay, page, color, bg1, bg2) {
+  let idx = (state || 0) & 0xFF;
+  if (idx & 0x80) idx = spikeExt;
+  if (idx >= spikeb.length) idx = 0;
+  const imgNum = spikeb[idx];
+  if (!imgNum) return;
+  const img = getBgImage(imgNum, bg1, bg2);
+  if (img) drawBgImage(display, img, srcX, ay - 1, page, true, color);
+}
+
+/**
+ * Draw slicer A-section (top + bottom blade halves).
+ * Assembly: drawslicera (FRAMEADV.S L1548)
+ */
+function drawSlicerA(display, state, srcX, ay, page, color, bg1, bg2) {
+  let s = ((state || 0) & 0x7f);
+  if (s >= slicerRet) s = slicerRet;
+  const seqIdx = slicerseq[s];
+  const frameIdx = seqIdx - 1;
+
+  // Bottom blade
+  const smeared = ((state || 0) & 0x80) !== 0;
+  const botImgNum = smeared ? slicerbot2[frameIdx] : slicerbot[frameIdx];
+  if (botImgNum) {
+    const botImg = getBgImage(botImgNum, bg1, bg2);
+    if (botImg) drawBgImage(display, botImg, srcX, ay, page, true, color);
+  }
+
+  // Top blade
+  const topImgNum = slicertop[frameIdx];
+  if (topImgNum) {
+    const topImg = getBgImage(topImgNum, bg1, bg2);
+    if (topImg) drawBgImage(display, topImg, srcX, ay - slicergap[frameIdx], page, true, color);
+  }
+}
+
+/**
+ * Draw slicer front piece (blade in front of character).
+ * Assembly: drawslicerf (FRAMEADV.S L1590) → maddfore (AND mask + ORA)
+ */
+function drawSlicerF(display, state, srcX, ay, page, color, bg1, bg2) {
+  let s = ((state || 0) & 0x7f);
+  if (s >= slicerRet) s = slicerRet;
+  const seqIdx = slicerseq[s];
+  const frameIdx = seqIdx - 1;
+
+  const fImgNum = slicerfrnt[frameIdx];
+  if (!fImgNum) return;
+  const fImg = getBgImage(fImgNum, bg1, bg2);
+  if (fImg) {
+    // maddfore: AND mask pass then ORA pass
+    drawBgMask(display, fImg, srcX, ay, page);
+    drawBgImage(display, fImg, srcX, ay, page, true, color);
+  }
+}
+
+/**
+ * Draw sword A-section (toggles gleam based on state).
+ * Assembly: drawsworda (FRAMEADV.S L1530)
+ */
+function drawSwordA(display, state, srcX, ay, page, bg1, bg2) {
+  const imgNum = (state === 1) ? swordgleam1 : swordgleam0;
+  const img = getBgImage(imgNum, bg1, bg2);
+  if (img) drawBgImage(display, img, srcX, ay, page, false); // STA mode
+}
+
+/**
+ * Draw loose floor B-section.
+ * Assembly: drawlooseb (FRAMEADV.S L1389)
+ */
+function drawLooseB(display, state, srcX, ay, page, color, bg1, bg2) {
+  const li = getLooseY(state);
+  const img = getBgImage(looseb_img, bg1, bg2);
+  if (img) drawBgImage(display, img, srcX, ay + looseby[li], page, true, color);
+}
+
+/**
+ * Draw gate C-section.
+ * Assembly: drawgatec (FRAMEADV.S L1701)
+ * AND mask with gatecmask, then ORA with gate8c indexed by (state/4) mod 8
+ */
+function drawGateC(display, gateTile, srcX, blockBot, page, color, bg1, bg2) {
+  // AND mask
+  const maskImg = getBgImage(gatecmask, bg1, bg2);
+  if (maskImg) drawBgMask(display, maskImg, srcX, blockBot, page);
+
+  // gate state → frame index
+  let gateState = (gateTile.spec || 0);
+  if (gateState > gmaxval) gateState = gmaxval;
+  const gateposn = gateState >> 2;
+  // Y = (state/4) mod 8 computed as: ((gateposn & 0xf8) ^ 0xff + 1 + gateposn) & 0xff
+  // Simplified: gateposn % 8
+  const frameIdx = gateposn & 7;
+  const cImgNum = gate8c[frameIdx];
+  const cImg = getBgImage(cImgNum, bg1, bg2);
+  if (cImg) drawBgImage(display, cImg, srcX, blockBot, page, true, color);
+}
+
+/**
+ * Draw gate B-section (vertical bars).
+ * Assembly: drawgateb (FRAMEADV.S L1814)
+ * Draws bottom, middle sections, and top piece from bottom to top.
+ */
+function drawGateB(display, gateTile, srcX, ay, blockBot, page, color, bg1, bg2) {
+  const blockthr = blockBot - 62; // topmost line of B-section
+
+  let gateState = (gateTile.spec || 0);
+  if (gateState > gmaxval) gateState = gmaxval;
+  const gateposn = (gateState >> 2) + 1;
+  const gatebot = ay - gateposn;
+
+  // Bottom piece — check if overlaps floor line
+  const botOverlap = gatebot + 12 >= ay;
+  if (botOverlap) {
+    // ORA mode (bottom piece overlaps floor)
+    const botImg = getBgImage(gatebotORA, bg1, bg2);
+    if (botImg) drawBgImage(display, botImg, srcX, gatebot - 2, page, true, color);
+  } else {
+    // STA mode
+    const botImg = getBgImage(gatebotSTA, bg1, bg2);
+    if (botImg) drawBgImage(display, botImg, srcX, gatebot, page, false, color);
+  }
+
+  // Middle pieces (gateB1, 8 lines each)
+  const midImg = getBgImage(gateB1, bg1, bg2);
+  if (midImg) {
+    let y = gatebot - 12;
+    while (y >= 0 && y < 192) {
+      if (y - 7 < blockthr) break; // would stick out of block area
+      drawBgImage(display, midImg, srcX, y, page, false, color);
+      y -= 8;
+      if (y <= 0) break;
+    }
+
+    // Top piece: remaining height 1–8 pixels from gate8b
+    if (y >= blockthr && y < 192) {
+      const topHeight = y - blockthr + 1;
+      if (topHeight > 0 && topHeight < 9) {
+        const topImgNum = gate8b[topHeight - 1];
+        const topImg = getBgImage(topImgNum, bg1, bg2);
+        if (topImg) drawBgImage(display, topImg, srcX, y, page, false, color);
+      }
+    }
+  }
+}
+
+/**
+ * Draw exit B-section (stairs + door).
+ * Assembly: drawexitb (FRAMEADV.S L1616)
+ */
+function drawExitB(display, exitTile, srcX, ay, blockBot, page, color, bg1, bg2) {
+  // Stairs (drawn at XCO+1, ay-12)
+  if (srcX + 1 < 36) { // can't protrude off right edge
+    const stairsImg = getBgImage(stairs, bg1, bg2);
+    if (stairsImg) {
+      drawBgImage(display, stairsImg, srcX + 7, ay - 12, page, false, color);
+    }
+  }
+
+  // Door — draw from bottom to top using AND mask + ORA
+  const blockthr = blockBot - 67;
+  if (blockthr >= 192) return;
+
+  const gateposn = (exitTile.spec || 0) >> 2;
+  const doorTop = ay - 14 - gateposn;
+
+  const doorMaskImg = getBgImage(doormask, bg1, bg2);
+  const doorImg = getBgImage(door, bg1, bg2);
+
+  let y = ay - 14;
+  while (y >= blockthr && y < 192) {
+    if (doorMaskImg) drawBgMask(display, doorMaskImg, srcX + 7, y, page);
+    if (doorImg) drawBgImage(display, doorImg, srcX + 7, y, page, true, color);
+    y -= 4;
+  }
+
+  // Top repair
+  const repairY = ay - 64;
+  if (repairY < 192) {
+    const repairImg = getBgImage(toprepair, bg1, bg2);
+    if (repairImg) drawBgImage(display, repairImg, srcX + 7, repairY, page, false, color);
+  }
 }
 
 // ─── Procedural fallback (no BG images loaded) ─────────────────────────────
