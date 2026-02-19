@@ -40,9 +40,23 @@ async function main() {
     console.warn(err);
   }
 
-  // --- Start attract loop ---
+  // --- Start attract loop (interruptible by keypress/click) ---
+  let startGame = false;
+  const startHandler = (e) => {
+    // Ignore modifier-only keys
+    if (e.type === 'keydown' && (e.key === 'Shift' || e.key === 'Control' || e.key === 'Alt' || e.key === 'Meta')) return;
+    startGame = true;
+  };
+  document.addEventListener('keydown', startHandler);
+  canvas.addEventListener('click', startHandler);
+
   display.blackout();
-  await attractLoop(display, text, imageTables);
+  await attractLoop(display, text, imageTables, () => startGame);
+
+  // Clean up listeners and transition to game
+  document.removeEventListener('keydown', startHandler);
+  canvas.removeEventListener('click', startHandler);
+  window.location.href = 'levels.html';
 }
 
 // Go!

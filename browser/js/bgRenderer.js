@@ -540,68 +540,102 @@ export function drawRoom(display, level, roomIdx, opts = {}) {
         }
       }
 
-      // ── drawfrnt: front piece ──
-      {
-        // Slicer front handled specially
-        if (id === TILE.slicer) {
-          drawSlicerF(display, tile.spec, srcX, ay, page, tileColor, bg1, bg2);
-        } else {
-          let fImgNum;
-          let fUseOra = true; // default ORA
-          let fUseMask = false; // maddfore = AND mask + ORA
-
-          if (id === TILE.block) {
-            fImgNum = blockfr[(tile.spec < NUMBLOX) ? tile.spec : 0];
-            fUseOra = false; // STA mode
-          } else if (id === TILE.flask) {
-            // Special flask: check potion type in state bits [7:5]
-            // Assembly: if bits == 5 (0xa0) or bits < 2 (< 0x40), use normal front
-            // Otherwise use specialflask
-            const potionBits = (tile.spec & 0xe0);
-            if (potionBits !== 0xa0 && potionBits >= 0x40) {
-              fImgNum = specialflask;
-            } else {
-              fImgNum = fronti[id];
-            }
-            fUseMask = true; // maddfore
-          } else if (id >= TILE.archtop2) {
-            // archtop2, archtop3, archtop4 → STA
-            fImgNum = fronti[id];
-            fUseOra = false;
-          } else if (!palace && id === TILE.posts) {
-            // Dungeon posts → STA
-            fImgNum = fronti[id];
-            fUseOra = false;
-          } else {
-            fImgNum = fronti[id];
-            if (fImgNum) fUseMask = true; // default: maddfore (AND+ORA)
-          }
-
-          if (fImgNum) {
-            const fX = srcX + frontx[id] * 7;
-            const fY = ay + fronty[id];
-
-            if (fUseMask) {
-              // maddfore: first AND pass (mask), then ORA pass
-              const fMaskImg = getBgImage(fImgNum, bg1, bg2);
-              if (fMaskImg) {
-                drawBgMask(display, fMaskImg, fX, fY, page);
-                drawBgImage(display, fMaskImg, fX, fY, page, true, tileColor);
-              }
-            } else if (fUseOra) {
-              const fImg = getBgImage(fImgNum, bg1, bg2);
-              if (fImg) drawBgImage(display, fImg, fX, fY, page, true, tileColor);
-            } else {
-              // STA mode
-              const fImg = getBgImage(fImgNum, bg1, bg2);
-              if (fImg) drawBgImage(display, fImg, fX, fY, page, false, tileColor);
-            }
-          }
-        }
-
-        // DrawGateBF? — gate front bars only drawn when kid is present (Phase 4)
+      // ── drawfrnt: front piece (skip if back-only pass) ──
+      if (!opts.skipFront) {
+        drawFrontPiece(display, id, tile.spec, srcX, ay, page,
+                       palace, tileColor, bg1, bg2);
       }
     }
+  }
+}
+
+/**
+ * Draw only the front-piece (fore) layer for a room.
+ * Call this AFTER drawing the mid-layer (characters) to composite
+ * front pieces on top.
+ *
+ * @param {import('./display.js').Display} display
+ * @param {Object} level        Parsed level data
+ * @param {number} roomIdx      Room number (1–24)
+ * @param {Object} [opts]       Same options as drawRoom
+ */
+export function drawFrontPieces(display, level, roomIdx, opts = {}) {
+  const room = level.rooms[roomIdx];
+  if (!room) return;
+
+  const page = opts.page !== undefined ? opts.page : 0;
+  const palace = !!opts.palace;
+  const bg1 = opts.bgTables?.bgtable1 || null;
+  const bg2 = opts.bgTables?.bgtable2 || null;
+
+  const tileColor = palace ? PALACE_TILE_COLOR : DUNGEON_TILE_COLOR;
+
+  for (let row = 0; row < 3; row++) {
+    for (let col = 0; col < 10; col++) {
+      const tile = room.tiles[row * 10 + col];
+      const id = tile.id;
+      const { srcX, ay } = blockCoords(col, row);
+
+      drawFrontPiece(display, id, tile.spec, srcX, ay, page,
+                     palace, tileColor, bg1, bg2);
+    }
+  }
+}
+
+/**
+ * Draw a single tile's front piece.
+ * Extracted from drawRoom's drawfrnt section.
+ */
+function drawFrontPiece(display, id, spec, srcX, ay, page,
+                        palace, tileColor, bg1, bg2) {
+  if (id === TILE.slicer) {
+    drawSlicerF(display, spec, srcX, ay, page, tileColor, bg1, bg2);
+    return;
+  }
+
+  let fImgNum;
+  let fUseOra = true;
+  let fUseMask = false;
+
+  if (id === TILE.block) {
+    fImgNum = blockfr[(spec < NUMBLOX) ? spec : 0];
+    fUseOra = false;
+  } else if (id === TILE.flask) {
+    const potionBits = (spec & 0xe0);
+    if (potionBits !== 0xa0 && potionBits >= 0x40) {
+      fImgNum = specialflask;
+    } else {
+      fImgNum = fronti[id];
+    }
+    fUseMask = true;
+  } else if (id >= TILE.archtop2) {
+    fImgNum = fronti[id];
+    fUseOra = false;
+  } else if (!palace && id === TILE.posts) {
+    fImgNum = fronti[id];
+    fUseOra = false;
+  } else {
+    fImgNum = fronti[id];
+    if (fImgNum) fUseMask = true;
+  }
+
+  if (!fImgNum) return;
+
+  const fX = srcX + frontx[id] * 7;
+  const fY = ay + fronty[id];
+
+  if (fUseMask) {
+    const fMaskImg = getBgImage(fImgNum, bg1, bg2);
+    if (fMaskImg) {
+      drawBgMask(display, fMaskImg, fX, fY, page);
+      drawBgImage(display, fMaskImg, fX, fY, page, true, tileColor);
+    }
+  } else if (fUseOra) {
+    const fImg = getBgImage(fImgNum, bg1, bg2);
+    if (fImg) drawBgImage(display, fImg, fX, fY, page, true, tileColor);
+  } else {
+    const fImg = getBgImage(fImgNum, bg1, bg2);
+    if (fImg) drawBgImage(display, fImg, fX, fY, page, false, tileColor);
   }
 }
 

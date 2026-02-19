@@ -59,12 +59,23 @@
     <select id="room-select"></select>
     <span>|</span>
     <button id="btn-map">Map (M)</button>
+    <span>|</span>
+    <label>Sequence:</label>
+    <select id="seq-select"></select>
+    <span>|</span>
+    <button id="btn-pause" title="Space">&#9646;&#9646;</button>
+    <button id="btn-step" title="N">&#9654;|</button>
+    <button id="btn-reset" title="R">&#8634;</button>
+    <span>|</span>
+    <button id="btn-play" title="P">Play (P)</button>
   </div>
 
   <div id="help-text">
-    Arrow keys: navigate rooms<br>
-    M: toggle map<br>
-    1-9: jump to room
+    Arrow keys: navigate rooms (view) / move character (play)<br>
+    Shift: hold to grab ledges while falling<br>
+    M: toggle map &middot; P: toggle play mode<br>
+    Space: pause/resume &middot; N: step frame &middot; R: reset<br>
+    Escape: exit play mode
   </div>
 
   <script type="module" src="js/levelViewer.js"></script>

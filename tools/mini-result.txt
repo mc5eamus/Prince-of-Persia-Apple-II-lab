@@ -1,0 +1,2 @@
+Tested 72 rooms
+No JS errors

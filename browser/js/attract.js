@@ -31,27 +31,43 @@ const FRAME_MS  = 55;     // milliseconds per animation frame
  * @param {number} units
  * @returns {Promise<void>}
  */
+let _attractStopper = null;
+
 function tpause(units) {
-  return new Promise(resolve => setTimeout(resolve, units * TPAUSE_MS));
+  return new Promise(resolve => {
+    const total = units * TPAUSE_MS;
+    const step = 50; // check stop flag every 50ms
+    let elapsed = 0;
+    const id = setInterval(() => {
+      elapsed += step;
+      if (elapsed >= total || (_attractStopper && _attractStopper())) {
+        clearInterval(id);
+        resolve();
+      }
+    }, step);
+  });
 }
 
 /**
  * Wait for one animation frame.
  */
 function frameDelay() {
+  if (_attractStopper && _attractStopper()) return Promise.resolve();
   return new Promise(resolve => setTimeout(resolve, FRAME_MS));
 }
 
 /**
- * Run the full attract loop. Loops forever until the page is closed or
- * a key / click is detected (TODO: start game on keypress).
+ * Run the full attract loop. Loops until shouldStop() returns true,
+ * then returns so the caller can transition to the game.
  *
  * @param {Display} display
  * @param {TextRenderer} text
  * @param {Object} imageTables   Pre-loaded image tables
+ * @param {Function} [shouldStop]  Optional callback; return true to exit the loop
  */
-export async function attractLoop(display, text, imageTables) {
-  while (true) {
+export async function attractLoop(display, text, imageTables, shouldStop) {
+  const stop = shouldStop || (() => false);
+  while (!stop()) {
     // ---- 1. SetupDHires ----
     display.blackout();
     await tpause(10);

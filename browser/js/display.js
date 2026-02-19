@@ -46,6 +46,9 @@ export class Display {
 
     // Palette (can be swapped for mono etc.)
     this.palette = DHIRES_COLORS;
+
+    // Screen shake vertical offset (set by game loop, consumed by present())
+    this.shakeY = 0;
   }
 
   // ---------------------------------------------------------------------------
@@ -114,22 +117,31 @@ export class Display {
   //  Rendering to canvas
   // ---------------------------------------------------------------------------
 
-  /** Blit the active page to the canvas */
+  /** Blit the active page to the canvas.
+   *  Applies this.shakeY vertical pixel offset for screen shake. */
   present() {
     const fb = this.pages[this.activePage];
     const data = this.imageData.data;
     const pal = this.palette;
     const W = this.WIDTH;
     const SY = this.SCALE_Y;
+    const shake = this.shakeY || 0;
+
+    // Clear imageData when shake is active (avoid leftover rows)
+    if (shake !== 0) {
+      data.fill(0);
+    }
 
     for (let y = 0; y < this.HEIGHT; y++) {
+      const dstY = y + shake;
+      if (dstY < 0 || dstY >= this.HEIGHT) continue;
       const srcOff = y * W;
       for (let x = 0; x < W; x++) {
         const ci = fb[srcOff + x];
         const [r, g, b] = pal[ci] || [0, 0, 0];
         // Write doubled scanlines
         for (let dy = 0; dy < SY; dy++) {
-          const dstOff = ((y * SY + dy) * W + x) * 4;
+          const dstOff = ((dstY * SY + dy) * W + x) * 4;
           data[dstOff]     = r;
           data[dstOff + 1] = g;
           data[dstOff + 2] = b;
